@@ -36,11 +36,8 @@ use Cwd;
 # edit the $config_file variable to the full path and name of your config file
 # an example of the required config file is at the bottom of this file
 
-#my $system = `lsid` ? 'ada' : 'terra';  # ada(LSF), terra(SLURM)
-my $system = `hostname`;
-$system = 'ada' if $system =~ /^login/;
-$system = 'curie' if $system =~ /^p7-/;
-$system = 'terra' if $system =~ /^tlogin/;
+my $system = `cat /sw/local/etc/clustername`;
+chomp $system;
 
 my $config_file = "$Bin/../conf/templates.conf";
 my $scripts_dir = "$Bin/../templates/$system";
@@ -63,7 +60,7 @@ Synopsis:
         to identify a script template and copy it to your pwd.
     If a script with the same name already exists in your pwd, then templates will prompt you.
     All script templates have been tested on the current system with a sample data set.
-    Please adjust BSUB parameters and input files for your data analysis requirements.
+    Please adjust #SBATCH parameters and input files for your data analysis requirements.
 
 };
 
@@ -443,7 +440,7 @@ sub copy_script {
     system ("cp -i $scripts_dir/$script $pwd");
     print "\n";
     printf("%s", colored(" Be sure to do the following: " , $menu_item_match_colors));
-    &quit("\n    -- Read the software manual and add, adjust or remove command options as needed\n    -- Check for newer versions of the software in two places\n        - on the cluster with module spider\n        - on the web at the software's website\n    -- Change the BSUB parameters and input files based on your data requirements");
+    &quit("\n    -- Read the software manual and add, adjust or remove command options as needed\n    -- Check for newer versions of the software in two places\n        - on the cluster with module spider\n        - on the web at the software's website\n    -- Change the #SBATCH parameters and input files based on your data requirements");
 }
 
 sub quit {
