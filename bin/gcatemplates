@@ -1,0 +1,560 @@
+#!/usr/bin/env perl
+#===============================================================================
+#         FILE: gcatemplates
+#
+#        USAGE: gcatemplates
+#
+#  DESCRIPTION: Presents menus to select and copy a shell script to your pwd
+#
+#      OPTIONS: none
+# REQUIREMENTS: Term::ANSIColor; Term::Cap
+#         BUGS: ---
+#        NOTES: *templates will prompt you if the selected shell script is already in pwd
+#               *you must have a config file and set the $config_file variable
+#               *search feature now available in version 1.3
+#       AUTHOR: Michael Dickens cmdickens@tamu.edu
+# ORGANIZATION: Texas A&M University
+#      VERSION: 1.3
+# LAST UPDATED: 07/07/2017
+#     REVISION: 1
+#===============================================================================
+
+use strict;
+use warnings;
+use Data::Dumper;
+use FindBin qw($Bin);
+use Term::ANSIColor;
+use Term::Cap; # not needed if $scroll_screen_on_clear is set to 0
+use File::Basename;
+use Getopt::Long qw(:config no_ignore_case);
+use Term::ReadKey;
+use Cwd;
+
+###############################################################################
+# TODO
+# edit the $scripts_dir variable to the full path of the directory of your shell scripts
+# edit the $config_file variable to the full path and name of your config file
+# an example of the required config file is at the bottom of this file
+
+#my $system = `lsid` ? 'ada' : 'terra';  # ada(LSF), terra(SLURM)
+my $system = `hostname`;
+$system = 'ada' if $system =~ /^login/;
+$system = 'curie' if $system =~ /^p7-/;
+$system = 'terra' if $system =~ /^tlogin/;
+
+my $config_file = "$Bin/../conf/templates.conf";
+my $scripts_dir = "$Bin/../templates/$system";
+
+# set the following to 1 if you want all screen contents scrolled upwards instead of cleared
+my $scroll_screen_on_clear = 0; 
+
+my $tab_delimited_config_file = 0;  # set to 0 for using 2 or more spaces as delimiter
+#
+###############################################################################
+
+my $menu_title_colors = 'bold white on_magenta';
+my $menu_item_colors = 'bold white on_blue';
+my $menu_item_match_colors = 'bold black on_yellow';
+
+my $usage = qq{
+Synopsis:
+    Genomic Computational Analysis Templates (GCATemplates)
+    This script will guide you through multiple levels of descriptors (such as CATEGORY, TASKS, TOOLS and OPTIONS)
+        to identify a script template and copy it to your pwd.
+    If a script with the same name already exists in your pwd, then templates will prompt you.
+    All script templates have been tested on the current system with a sample data set.
+    Please adjust BSUB parameters and input files for your data analysis requirements.
+
+};
+
+my $help;
+GetOptions ("h|help" => \$help,);
+
+if (defined $help) {
+    print "$usage\n";
+    exit;
+}
+
+my %data;
+my %menu_items;
+my @menu_titles;
+my %selected_menu_item;
+my $longest_title_length = 0;
+my $level = 0;              # level 0 = MAIN MENU
+my $max_row_length = 40;    # used to pad blue spaces in the menu and make all rows even in length
+my @search_fields;
+
+my ($terminal, $clear_string);
+$terminal = Term::Cap->Tgetent( { OSPEED => 9600 } ) if $scroll_screen_on_clear;
+$clear_string = $terminal->Tputs('cl') if $scroll_screen_on_clear;
+
+# load cofig file into a data hash
+open (CONFIG, "<", $config_file) || die $!;
+while (<CONFIG>) {
+    next if /^$/;
+
+    # get menu_titles which will also be the number of menu_levels (columns)
+    unless (@menu_titles) {
+        @menu_titles = $tab_delimited_config_file ? split("\t+", $_) : split(/ {2,}/, $_);
+        $menu_titles[0] =~ s/^#+//;
+        foreach (@menu_titles) {
+            $longest_title_length = length($_) if length($_) > $longest_title_length;
+        }
+        s{^\s+|\s+$}{}g foreach @menu_titles; # remove leading and trailing spaces
+    }
+
+    next if /^#/;
+    next if /^\t+$/;
+    next if /^\s+$/;
+    chomp;
+    s/\s+$//;
+
+    # keep scripts which have been tested on this $system
+    # this helps distinguish between scripts developed on lsf vs pbs systems
+    next unless /_$system\.sh$/;
+
+    push (@search_fields, $_);
+
+    my @fields = $tab_delimited_config_file ? split("\t+", $_) : split(/ {2,}/, $_);
+
+    # check to make sure the number of columns for each line matches the number of titles
+    if (@fields > @menu_titles) {
+        print "\nThe number of columns [" . (@fields) . "] in this line are greater than the number of columns [" . (@menu_titles) . "] in the header:\n";
+        print "$_\n\n";
+        &quit("Check that the number of header columns in the tab delimited config file match the number of columns in the rest of the file.");
+    }
+    elsif (@fields < @menu_titles) {
+        print "\nThe number of columns [" . (@fields) . "] in this line are less than the number of columns [" . (@menu_titles) . "] in the header:\n";
+        print "$_\n\n";
+        &quit("Check that the number of header columns in the tab delimited config file match the number of columns in the rest of the file.");
+    }
+
+    foreach (@fields) {
+        $max_row_length = length($_) if length($_) > $max_row_length;
+    }
+    if (@menu_titles == 4) {
+        $data{$fields[0]}{$fields[1]}{$fields[2]} = $fields[3];
+    }
+    elsif (@menu_titles == 5) {
+        $data{$fields[0]}{$fields[1]}{$fields[2]}{$fields[3]} = $fields[4];
+    }
+}
+close CONFIG;
+
+my %menu_titles = (    '0' => basename($0),
+                    '1' => $menu_titles[0],
+                    '2' => $menu_titles[1],
+                    '3' => $menu_titles[2],
+                    '4' => $menu_titles[3],
+                    '5' => $menu_titles[4],
+);
+
+my $menu_levels = (@menu_titles);
+
+$menu_titles{0} =~ s/gcat/GCAT/;
+
+my @dashes;
+foreach $level (1 .. $menu_levels) {
+    my $dashes;
+    my $num_dashes = ($longest_title_length + 7) - length($menu_titles{$level});
+    foreach (1 .. $num_dashes) {
+        $dashes .= "-";
+    }
+    $dashes[$level - 1] = $dashes;
+}
+
+my $largest_number_of_menu_items = &get_longest_menu;
+my $match_found = 0;
+
+while (1) {
+    &print_menu($level, $selected_menu_item{$level});
+    my $user_input = (<STDIN>);
+    chomp($user_input);
+    $user_input = &parse_input($user_input);
+    &process_input($user_input);
+}
+
+sub print_menu {
+    my $level  = shift;
+    my @rows;
+    %menu_items = ();
+    if ($scroll_screen_on_clear) {
+        # clears screen by scrolling current screen content upwards
+        print $clear_string; 
+    }
+    else {
+        # clears screen without scrolling current contents upwards
+        system('echo -e "\033c"'); 
+    }
+
+    LEVEL_0: # main menu
+    foreach my $first (sort keys %data) {
+        if ($level == 0) {
+            %selected_menu_item = ('0' => $menu_titles{'0'},);
+            push(@rows, $first);
+            next;
+        }
+        LEVEL_1:
+        foreach my $second (sort keys %{$data{$first}}) {
+            if ($level == 1) {
+                push(@rows, $second) if ($first eq $selected_menu_item{0});
+                next;
+            }
+            LEVEL_2:
+            foreach my $third (sort keys %{$data{$first}{$second}}) {
+                if ($level == 2) {
+                    push(@rows, $third) if ($first eq $selected_menu_item{0} && $second eq $selected_menu_item{1});
+                    next;
+                }
+                LEVEL_3:
+                if ($menu_levels == 4) {
+                    if ($level == 3) { 
+                        push(@rows, $data{$first}{$second}{$third}) if ($first eq $selected_menu_item{0} && $second eq $selected_menu_item{1} && $third eq $selected_menu_item{2});
+                    }
+                }
+                elsif ($menu_levels == 5) {
+                    foreach my $fourth (sort keys %{$data{$first}{$second}{$third}}) {
+                        if ($level == 3) { 
+                            push(@rows, $fourth) if ($first eq $selected_menu_item{0} && $second eq $selected_menu_item{1} && $third eq $selected_menu_item{2});
+                        }
+                        elsif ($level == 4) {
+                            if ($first eq $selected_menu_item{0} && $second eq $selected_menu_item{1} && $third eq $selected_menu_item{2} && $fourth eq $selected_menu_item{3}) {
+                                push(@rows, $data{$first}{$second}{$third}{$fourth});
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    printf("\n\t%s", "BIOINFORMATICS $menu_titles{0} ($system)\n");
+
+    # these are the menu items displayed once the user selects items from each menu
+    for (1 .. 4) {
+        printf("\n\t%s$dashes[$_ - 1]>%s", colored(" $menu_titles{$_} ", $menu_title_colors), colored(" $selected_menu_item{($_ - 1)} ", $menu_item_colors)) if $level >= $_;
+    }
+
+    # this is the header of the list of items on the current menu
+    printf("\n\n\n\n\n\n\t%s", colored(" $menu_titles{1} ", $menu_title_colors)) if $level == 0;
+    printf("\n\n\n\n\n\t%s",   colored(" $menu_titles{2} ", $menu_title_colors)) if $level == 1;
+    printf("\n\n\n\n\t%s",     colored(" $menu_titles{3} ", $menu_title_colors)) if $level == 2;
+    printf("\n\n\n\t%s",       colored(" $menu_titles{4} ", $menu_title_colors)) if $level == 3;
+    printf("\n\t%s",           colored(" $menu_titles{5} ", $menu_title_colors)) if $level == 4;
+
+    # these are the menu items for the current level
+    foreach my $row (1 .. @rows) {
+        my $menu_item = $rows[$row - 1];
+        my $item_length = length($menu_item);
+        my $trailing_spaces = " ";
+        foreach (1 .. ($max_row_length - $item_length)) {
+            $trailing_spaces .= " ";
+        }
+        if ($level == ($menu_levels - 1)) {
+            printf("$dashes[$level]>%s", colored(" $menu_item ", $menu_item_colors));
+            my $copy_message = "  Copy $menu_titles{$menu_levels} to current directory?  ";
+            $trailing_spaces = '';
+            $trailing_spaces .= ' ' foreach (1 .. ($max_row_length - length($copy_message)));
+            printf("\n\n\t%s", colored("$copy_message$trailing_spaces      ", 'bold black on_yellow'));
+            $menu_items{'y'} = $menu_item;
+        }
+        else {
+            $menu_items{$row} = $menu_item;
+            my @menu_item;
+            my $match_highlight = 0;
+            my $leading_spaces = $row > 9 ? ' ' : '  ';
+            chop($trailing_spaces) if ($row > 9 && $leading_spaces eq '  ');
+            if ($match_found) {
+                if ($menu_item =~ /^(.*)($match_found)(.*)$/i) {
+                    @menu_item = ($1, $2, $3);
+                    $match_highlight = 1;
+                    printf("\n\t%s", colored("$leading_spaces$row. $menu_item[0]", $menu_item_colors));
+                    printf("%s", colored("$menu_item[1]" ,$menu_item_match_colors));
+                    printf("%s", colored("$menu_item[2]" . $trailing_spaces, $menu_item_colors));
+                }
+                else {
+                    printf("\n\t%s", colored("$leading_spaces$row. $menu_item" . $trailing_spaces, $menu_item_colors));
+                }
+            }
+            else {
+                printf("\n\t%s", colored("$leading_spaces$row. $menu_item" . $trailing_spaces, $menu_item_colors));
+            }
+        }
+    }
+    $match_found = 0;
+
+    # this prints blank rows so that all the menus have the same height
+    foreach (@rows .. $largest_number_of_menu_items) {
+        my $blank = '      ';
+        for (1 .. $max_row_length) {
+            $blank.=' ';
+        }
+        printf("\n\t%s", colored($blank, $menu_item_colors));
+    }
+
+    if ($level == 0) {
+        printf("\n\n\n\n\t%s", colored(' s  search ', 'bold black on_white'));
+        printf("\n\t%s", colored(' q  quit ', 'bold white on_red'));
+    }
+    else {
+        if ($level == ($menu_levels - 1)) {
+            printf("\n\t%s", colored(' y  yes  ', 'bold black on_yellow'));
+            printf("\n\t%s", colored(' b  back ', 'bold black on_green'));
+        }
+        else {
+            printf("\n\n\t%s", colored(' b  back ', 'bold black on_green'));
+        }
+        printf("\n\t%s",   colored(' h  home ', 'bold black on_green'));
+        printf("\n\t%s",   colored(' s  search ', 'bold black on_white'));
+        printf("\n\t%s",   colored(' q  quit ', 'bold white on_red'));
+    }
+    printf("\n\n%s",   colored("  Select:", 'bold green on_black'));
+    return 1;
+}
+
+sub get_longest_menu {
+    # this is to set the vertical placement of the Select: prompt so that it is consistent across all menus
+    my $length;
+    my @count_at_level;
+
+    $count_at_level[1] = scalar (keys %data);
+    foreach my $first (keys %data) {
+        $count_at_level[2] = scalar (keys %{$data{$first}});
+        foreach my $second (keys %{$data{$first}}) {
+            $count_at_level[3] = scalar (keys %{$data{$first}{$second}});
+            foreach my $third (keys %{$data{$first}{$second}}) {
+                if ($menu_levels == 5) {
+                    $count_at_level[4] = scalar (%{$data{$first}{$second}{$third}});
+                }
+            }
+        }
+    }
+#Use of uninitialized value $length in numeric gt (>) at /software/tamusc/Bio/GCATemplates/bin/gcatemplates line 329.
+#Argument "1/8" isn't numeric in numeric gt (>) at /software/tamusc/Bio/GCATemplates/bin/gcatemplates line 329.
+    foreach (1 .. 4) {
+        $length = $count_at_level[$_] if $count_at_level[$_] > $length;
+    }
+
+    return $length;
+}
+
+sub parse_input {
+    my $input = shift;
+    chomp($input);
+    $input = 's' if $input eq '/';
+    # next line allows search similar to a vi search using / and search term like: /trinity
+    $input = 'S' . $1 if $input =~ /^\/([A-Za-z0-9\-_\s]+)$/;
+    $input = &clean($input);
+    &quit if $input =~ /^q(uit)?|exit$/;
+    return $input;
+}
+
+sub process_input {
+    my $user_input = shift;
+    if ($user_input eq 'h') {
+        $level = 0;
+        return;
+    }
+    if ($user_input eq 's') {
+        my $term_found = &search('input');
+        return unless $term_found;
+    }
+    elsif ($user_input eq 'y' && $level == ($menu_levels - 1)) {
+        &copy_script($menu_items{'y'});
+    }
+    # next elsif allows search similar to a vi search using / and search term like: /trinity
+    elsif ($user_input =~ /^S([A-Za-z0-9\-_\s]+)$/) {
+        my $search_term = &clean($1);
+        my $term_found = &search($search_term);
+        return unless $term_found;
+    }
+    elsif ($user_input eq 'b' && $level != 0) {
+        $level--;
+        return;
+    }
+    elsif (! exists $menu_items{$user_input}) {
+        return;
+    }
+    $selected_menu_item{$level} = $menu_items{$user_input};
+    $level++;
+}
+
+sub search {
+    my $mode = shift;
+    my $user_input;
+    if ($mode eq 'input') {
+        print "  Enter search keyword: ";
+        $user_input = (<STDIN>);
+        chomp($user_input);
+        $user_input = &clean($user_input);
+    }
+    else {
+        $user_input = $mode;
+        $user_input = &clean($user_input);
+    }
+
+    my $results;
+    foreach (@search_fields) {
+        my $tool = $_;
+        my @fields_array = $tab_delimited_config_file ? split("\t+", $tool) : split(/ {2,}/, $tool);
+        
+        if ($fields_array[2] =~ /$user_input/i) {
+            $results = $tool;
+            last;
+        }
+    }
+
+    if (! defined $results || $results !~ /$user_input/i) {
+        print "  No match for: $user_input\n";
+        print "  Press any key to continue...";
+        # replaced the following line with the next three lines
+        #my $no_match = (<STDIN>);
+        ReadMode('cbreak');
+        ReadKey(0);
+        ReadMode('normal');
+        return 0;
+    }
+    else {
+        $match_found = $user_input;
+        my @fields = $tab_delimited_config_file ? split("\t+", $results) : split(/ {2,}/, $results);
+
+        $level = 0;
+        foreach my $column (@fields) {
+            if ($column =~ /$user_input/i) {
+                $selected_menu_item{$level} = $column;
+                return;
+            }
+            $selected_menu_item{$level} = $column;
+            $level++;
+        }
+    }
+}
+
+sub clean {
+    my $term = shift;
+    # only keep characters that are alphanumeric - _ .
+    $term =~ s/[^\w\-_\.]//g;
+    return $term;
+}
+
+sub copy_script {
+    my $script = shift;
+    my $pwd = cwd();
+    system ("cp -i $scripts_dir/$script $pwd");
+    print "\n";
+    printf("%s", colored(" Be sure to do the following: " , $menu_item_match_colors));
+    &quit("\n    -- Read the software manual and add, adjust or remove command options as needed\n    -- Check for newer versions of the software in two places\n        - on the cluster with module spider\n        - on the web at the software's website\n    -- Change the BSUB parameters and input files based on your data requirements");
+}
+
+sub quit {
+    my $message = shift || "  Gig'em Ags!";
+    print "\n$message\n\n";
+    exit;
+}
+
+=head1 NAME
+
+gcatemplates
+
+=head1 DESCRIPTION
+
+This script is a CLI menu driven management tool
+for accessing template files such as shell scripts.
+
+=head1 SYNOPSIS
+
+=head1 LICENSE
+
+This is released under the Artistic 
+License 2.0. See L<perlartistic>.
+
+=head1 AUTHOR
+
+Michael Dickens  L<cmdickens@tamu.edu>
+
+=cut
+
+__END__
+Configuration
+
+File
+
+     You must set the $config_file value in the script to your config file.
+     You must set the $scripts_dir value in the script to the directory of your shell scripts.
+
+Format
+
+     All fields are tab or multi tab delimited. You can use multiple tabs to align columns.
+     A header that must begin with # is required and any header titles can be used.
+     The header can contain either 4 or 5 columns.
+     All lines except the header that begin with a # are ignored.
+
+Menu_Levels
+
+
+<four levels>
+
+Sample config file would contain headers such as:
+
+ # TASK             TOOL              OPTIONS            SHELL_SCRIPT
+ NGS FASTQ         QC:RNA-SeQC       1 se               run_rnaseqc.sh
+ NGS ALIGN         BWA_0.5.9_aln     paired end         run_bwa0.5.9_aln_pe.sh
+
+<five levels>
+
+Sample config file would contain headers such as:
+
+ # ANALYSIS_TYPE    TASK              TOOL               OPTIONS         SHELL_SCRIPT
+ DNA-seq           FASTQ             QC:RNA-SeQC        1 se            run_rnaseqc.sh
+ DNA-seq           ALIGN             BWA_0.5.9_aln      paired end      run_bwa0.5.9_aln_pe.sh
+ RNA-seq           VARIANT CALLING   STAR|GATK|snpEff   1 se lib        run_rna_seq_snpEff.sh
+
+
+# below is an example of a multi tab delimited shells.conf file
+# lines beginning with # are skipped except the first line which should be the column headers
+# the menu items are sorted alphabetically for each level
+# you can use any naming convention for any of the column values for all rows and also you can use spaces within each name
+# you can use one or more tabs to line up the columns but no spaces between columns
+# only 4 or 5 columns are supported; (all rows must be either 4 or 5 columns)
+# below are two examples of config files, the first has 4 columns (levels) and the second has 5 columns (levels)
+
+
+# TASK				TOOL				OPTIONS					FILE
+# NGS ALIGN			bwa aln				1 sample				run_bwa.sh
+NGS ALIGN			bwa mem				se						run_bwa_mem_se.sh
+NGS ALIGN			BLAST				1 sample				run_blast.sh
+NGS ALIGN			bowtie2				1 sample				run_bowtie.sh
+NGS ASSEMBLY		VelvetOptimiser		se						run_velvetopt_se.sh
+NGS ASSEMBLY		VelvetOptimiser		se, pe					run_velvetopt_se_pe.sh
+NGS ASSEMBLY		VelvetOptimiser		se, pe, mp2kb			run_velvetopt_se_pe_mp2kb.sh
+NGS ASSEMBLY		VelvetOptimiser		se, pe, mp10kb			run_velvetopt_se_pe_mp10kb.sh
+NGS ASSEMBLY		VelvetOptimiser		se, pe, mp2kb, mp10kb	run_velvetopt_se_pe_mp2kb_mp10kb.sh
+NGS ASSEMBLY		SGA					pe						run_sga_pe.sh
+NGS ASSEMBLY		SGA					pe,mp2kb				run_sga_pe_mp2kb.sh
+NGS ASSEMBLY		SGA					pe,mp2kb,mp10kb			run_sga_pe_mp2kb_mp10kb.sh
+CONTIG GAPFILL		GAP CLOSER			se						run_gap_closer_se.sh
+CONTIG GAPFILL		GAP CLOSER			pe						run_gap_closer_pe.sh
+# CONTIG GAPFILL		GAP CLOSER			se,pe					run_gap_closer_se_pe.sh
+CONTIG SCAFFOLDING	OPERA				1 pe lib				run_opera_pe.sh
+CONTIG SCAFFOLDING	SSPACE				1 pe lib				run_sspace_pe.sh
+VARIANT CALLING		GATK+snpEff			2 samples				run_gatk_snpeff_2samples.sh
+FILE FORMATS		sam2bam				1 sample				run_sam2bam.sh
+FILE FORMATS		gtf2gff3			1 sample				run_gtf2gff3.sh
+
+
+
+
+
+# ANALYSIS_TYPE		TASK				TOOL					OPTIONS					FILE
+RNA-seq				VARIANT CALLING		STAR|GATK|snpEff		1 se lib				run_rna_seq_snpEff.sh
+DNA-seq				FASTQ				QC:RNA-SeQC				1 se					run_rnaseqc.sh
+DNA-seq				ALIGN				BWA_0.5.9_aln			paired end				run_bwa0.5.9_aln_pe.sh
+DNA-seq				FASTQ:QC			trimmomatic				1 sample				run_trimmomatic.sh
+DNA-seq				FASTQ:QC			FASTQC					1 pe					run_fastqc_pe.sh
+DNA-seq				FASTQ:QC			Nextclip				1 pe					run_nextclip.sh
+DNA-seq				FASTQ:QC			RNA-SeQC				1 se					run_rnaseqc.sh
+# DNA-seq			ALIGN				BLAST					1 sample				run_blast.sh
+# DNA-seq			ALIGN				BOWTIE					1 sample				run_bowtie.sh
+R					GRAPHS				histogram				1 sample				run_r_histogram.sh
+R					GRAPHS				lines					3 samples				run_r_plot_lines.sh
+R					GRAPHS				points					4 samples				run_r_plot_points.sh
