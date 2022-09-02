@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1         # tasks (commands) per compute node
 #SBATCH --cpus-per-task=24          # CPUs (threads) per command
 #SBATCH --mem=180G                  # total memory per node
-#SBATCH --output=stdout.%x.%x.%j    # save stdout to file
-#SBATCH --error=stderr.%x.%x.%j     # save stderr to file
+#SBATCH --output=stdout.%x.%j       # save stdout to file
+#SBATCH --error=stderr.%x.%j        # save stderr to file
 
 module load GCC/8.3.0 OpenMPI/3.1.4 DETONATE/1.11
 
