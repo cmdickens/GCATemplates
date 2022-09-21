@@ -35,7 +35,7 @@ db_preset='full_dbs'                # full_dbs, reduced_dbs
 output_dir='out_alphafold_2.1.2_monomer_ptm'
 
 ################################### COMMANDS ###################################
-DOWNLOAD_DIR='/scratch/data/bio/alphafold_2.1.2'  # 3.4TB data already downloaded here
+DOWNLOAD_DIR='/scratch/data/bio/alphafold/2.1.0'  # 3.4TB data already downloaded here
 
 gpustats &
 
