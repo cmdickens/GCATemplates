@@ -40,7 +40,7 @@ pickle_out_dir=$protein_basename
 export SINGULARITYENV_TF_FORCE_UNIFIED_MEMORY=1
 export SINGULARITYENV_XLA_PYTHON_CLIENT_MEM_FRACTION=4.0
 
-# run jobstats in the background (&) to monitor GPU and CPU usage in order to create a graph later
+# run jobstats in the background (&) to monitor GPU and CPU usage in order to create graphs later
 jobstats &
 
 singularity exec --nv /sw/hprc/sw/bio/containers/alphafold/alphafold_2.2.0.sif python /app/alphafold/run_alphafold.py \
@@ -57,7 +57,7 @@ singularity exec --nv /sw/hprc/sw/bio/containers/alphafold/alphafold_2.2.0.sif p
  --output_dir=$output_dir \
  --fasta_paths=$protein_fasta
 
-# run jobstats to create a graph of GPU and CPU usage for this job
+# run jobstats to create graphs of GPU and CPU usage for this job
 jobstats
 
 # graph pLDDT with .pkl files
