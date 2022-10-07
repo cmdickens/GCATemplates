@@ -19,7 +19,7 @@ README
 # TODO Edit these variables as needed:
 
 ########## INPUTS ##########
-protein_fasta=/scratch/data/bio/alphafold/example_data/T1083_T1084_multimer.fasta
+protein_fasta=/scratch/data/bio/alphafold/2.2.0/example_data/T1083_T1084_multimer.fasta
 
 ######## PARAMETERS ########
 DOWNLOAD_DIR=/scratch/data/bio/alphafold/2.1.0  # 3.4TB data already downloaded here

@@ -23,7 +23,7 @@ README
 # TODO Edit these variables as needed:
 
 ########## INPUTS ##########
-protein_fasta='/scratch/data/bio/alphafold/2.2.0/example_data/IL2Y.fasta'
+protein_fasta='/scratch/data/bio/alphafold/2.2.0/example_data/1L2Y.fasta'
 
 ######## PARAMETERS ########
 DOWNLOAD_DIR='/scratch/data/bio/alphafold/2.2.0'
