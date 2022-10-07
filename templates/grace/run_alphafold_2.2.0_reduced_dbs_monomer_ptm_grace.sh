@@ -41,7 +41,7 @@ export SINGULARITYENV_TF_FORCE_UNIFIED_MEMORY=1
 export SINGULARITYENV_XLA_PYTHON_CLIENT_MEM_FRACTION=4.0
 
 # run gpustats in the background (&) to monitor GPU usage in order to create a graph later
-gpustats &
+jobstats &
 
 singularity exec --nv /sw/hprc/sw/bio/containers/alphafold/alphafold_2.2.0.sif python /app/alphafold/run_alphafold.py \
  --data_dir=$DOWNLOAD_DIR  --use_gpu_relax \
@@ -58,7 +58,7 @@ singularity exec --nv /sw/hprc/sw/bio/containers/alphafold/alphafold_2.2.0.sif p
  --fasta_paths=$protein_fasta
 
 # run gpustats to create a graph of GPU usage for this job
-gpustats
+jobstats
 
 # graph pLDDT with .pkl files
 run_AlphaPickle.py -od $output_dir/$pickle_out_dir
