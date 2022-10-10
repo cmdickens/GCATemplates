@@ -32,7 +32,7 @@ output_dir=out_alphafold_2.1.1_multimer
 
 ################################### COMMANDS ###################################
 # start a process to monitor GPU usage
-gpustats &
+jobstats &
 
 run_alphafold.py  \
  --data_dir=$DOWNLOAD_DIR  \
@@ -51,7 +51,7 @@ run_alphafold.py  \
  --fasta_paths=$protein_fasta
 
 # create a graph of GPU resource usage stats
-gpustats
+jobstats
 
 ################################################################################
 <<CITATIONS

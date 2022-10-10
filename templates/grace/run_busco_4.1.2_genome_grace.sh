@@ -24,7 +24,7 @@ genome_file='/scratch/data/bio/GCATemplates/miseq/c_dubliniensis/C_dubliniensis_
 ######## PARAMETERS ########
 threads=48                          # make sure this is <= your BSUB -n value
 
-# see available BUSCO 4.1.2 lineages in this directory: /scratch/data/bio/BUSCO/odb10/lineages/
+# see available BUSCO 4.1.2 lineages in this directory: /scratch/data/bio/busco4/odb10/lineages/
 busco_mode='genome'                 # genome, transcriptome, proteins
 busco_lineage='/scratch/data/bio/busco4/odb10/lineages/fungi_odb10'
 lineage_name=$(basename $busco_lineage)

@@ -34,8 +34,8 @@ output_dir='out_alphafold_2.1.1'
 ################################### COMMANDS ###################################
 DOWNLOAD_DIR='/scratch/data/bio/alphafold/2.1.0'  # 3.4TB data already downloaded here
 
-# run gpustats in the background (&) to monitor gpu usage in order to create a graph later
-gpustats &
+# run jobstats in the background (&) to monitor gpu usage in order to create a graph later
+jobstats &
 
 singularity exec --nv /sw/hprc/sw/bio/containers/alphafold_2.1.1.sif python /app/alphafold/run_alphafold.py  \
   --data_dir=$DOWNLOAD_DIR  \
@@ -52,8 +52,8 @@ singularity exec --nv /sw/hprc/sw/bio/containers/alphafold_2.1.1.sif python /app
   --output_dir=$output_dir \
   --fasta_paths=$protein_fasta
 
-# run gpustats to create a graph of gpu usage for this job
-gpustats
+# run jobstats to create a graph of gpu usage for this job
+jobstats
 
 ################################################################################
 <<CITATIONS

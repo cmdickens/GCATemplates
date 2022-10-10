@@ -37,7 +37,7 @@ output_dir='out_alphafold_2.1.2_monomer_ptm'
 ################################### COMMANDS ###################################
 DOWNLOAD_DIR='/scratch/data/bio/alphafold/2.1.0'  # 3.4TB data already downloaded here
 
-gpustats &
+jobstats &
 
 singularity exec --nv /sw/hprc/sw/bio/containers/alphafold_2.1.2.sif python /app/alphafold/run_alphafold.py  \
   --use_gpu_relax \
@@ -55,7 +55,7 @@ singularity exec --nv /sw/hprc/sw/bio/containers/alphafold_2.1.2.sif python /app
   --output_dir=$output_dir \
   --fasta_paths=$protein_fasta
 
-gpustats
+jobstats
 
 run_AlphaPickle.py -od $output_dir/$protein_out_dir
 
