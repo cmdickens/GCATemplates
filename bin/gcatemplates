@@ -39,8 +39,10 @@ use Cwd;
 my $system = `cat /sw/local/etc/clustername`;
 chomp $system;
 
-my $config_file = "$Bin/../conf/templates.conf";
-my $scripts_dir = "$Bin/../templates/$system";
+#my $config_file = "$Bin/../conf/templates.conf";
+#my $scripts_dir = "$Bin/../templates/$system";
+my $config_file = "/sw/hprc/sw/bio/GCATemplates/conf/templates.conf";
+my $scripts_dir = "/sw/hprc/sw/bio/GCATemplates/templates/$system";
 
 # set the following to 1 if you want all screen contents scrolled upwards instead of cleared
 my $scroll_screen_on_clear = 0; 
@@ -225,6 +227,7 @@ sub print_menu {
         }
     }
 
+	$system = uc($system);
     printf("\n\t%s", "BIOINFORMATICS $menu_titles{0} ($system)\n");
 
     # these are the menu items displayed once the user selects items from each menu
@@ -444,7 +447,7 @@ sub copy_script {
 }
 
 sub quit {
-    my $message = shift || "  Gig'em Ags!";
+    my $message = shift || "  Good Bye!";
     print "\n$message\n\n";
     exit;
 }
